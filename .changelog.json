@@ -1,0 +1,30 @@
+{
+  "categories": [
+    {
+      "title": "🚀 Features",
+      "labels": ["feature"]
+    },
+    {
+      "title": "🐛 Bug Fixes",
+      "labels": ["bug"]
+    },
+    {
+      "title": "🔧 Improvements",
+      "labels": ["improvement"]
+    },
+    {
+      "title": "📝 Documentation",
+      "labels": ["documentation"]
+    },
+    {
+      "title": "🔒 Security",
+      "labels": ["security"]
+    },
+    {
+      "title": "🔄 Other Changes",
+      "labels": [""]
+    }
+  ],
+  "sort": "DESC",
+  "template": "# Changelog\n\n{{#each categories}}\n## {{title}}\n\n{{#each commits}}\n* {{message}}\n{{/each}}\n\n{{/each}}\n"
+}
