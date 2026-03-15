@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pacman Game</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            font-family: Arial, sans-serif;
+            color: #fff;
+        }
+        h1 { color: #FFD700; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(255, 215, 0, 0.5); }
+        .info { display: flex; gap: 30px; margin-bottom: 15px; font-size: 18px; }
+        .info span { color: #FFD700; }
+        #game { border: 4px solid #2121DE; border-radius: 5px; background: #000; }
+        .controls { margin-top: 20px; text-align: center; color: #888; }
+        .controls p { margin: 5px 0; }
+        .key { display: inline-block; background: #333; padding: 5px 12px; border-radius: 3px; color: #FFD700; margin: 0 3px; }
+        #gameOver {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95); padding: 40px 60px; border: 3px solid #FFD700;
+            border-radius: 10px; text-align: center; display: none; z-index: 100;
+        }
+        #gameOver h2 { font-size: 36px; margin-bottom: 20px; }
+        #gameOver p { font-size: 20px; margin-bottom: 20px; }
+        #restartBtn {
+            background: #FFD700; color: #000; border: none; padding: 15px 30px;
+            font-size: 18px; cursor: pointer; border-radius: 5px; font-weight: bold;
+        }
+        #restartBtn:hover { background: #FFA500; }
+    </style>
+</head>
+<body>
+    <h1>PACMAN</h1>
+    <div class="info">
+        <div>Score: <span id="score">0</span></div>
+        <div>Lives: <span id="lives">3</span></div>
+        <div>High Score: <span id="highScore">0</span></div>
+    </div>
+    <canvas id="game"></canvas>
+    <div class="controls">
+        <p>Use arrow keys or WASD to move | Space to pause</p>
+    </div>
+    <div id="gameOver">
+        <h2 id="gameOverText">GAME OVER</h2>
+        <p>Final Score: <span id="finalScore">0</span></p>
+        <button id="restartBtn">Play Again</button>
+    </div>
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        const TILE_SIZE = 20, PACMAN_SPEED = 2, GHOST_SPEED = 2;
+        const WALL = 1, DOT = 2, POWER = 3, EMPTY = 0;
+
+        const map = [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,2,2,2,2,2,2,2,2,1,2,2,2,2,2,2,2,2,1],
+            [1,2,1,1,1,2,1,1,2,1,2,1,1,2,1,1,1,2,1],
+            [1,2,1,1,1,2,1,1,2,1,2,1,1,2,1,1,1,2,1],
+            [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+            [1,2,1,1,1,2,1,1,1,1,1,1,2,1,1,1,1,2,1],
+            [1,2,2,2,2,2,2,2,2,1,2,2,2,2,2,2,2,2,1],
+            [1,1,1,1,1,2,1,1,2,1,2,1,1,2,1,1,1,1,1],
+            [1,1,1,1,1,2,1,1,2,3,2,1,1,2,1,1,1,1,1],
+            [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+            [1,2,1,1,1,2,1,1,1,1,1,1,2,1,1,1,1,2,1],
+            [1,2,2,2,2,2,2,2,2,1,2,2,2,2,2,2,2,2,1],
+            [1,1,1,1,1,2,1,1,2,1,2,1,1,2,1,1,1,1,1],
+            [1,2,2,2,2,2,1,1,2,1,2,1,1,2,2,2,2,2,1],
+            [1,2,1,1,1,2,2,2,2,2,2,2,2,2,1,1,1,2,1],
+            [1,2,2,2,2,2,1,1,2,1,2,1,1,2,2,2,2,2,1],
+            [1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,1,1,1,1],
+            [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+
+        canvas.width = map[0].length * TILE_SIZE;
+        canvas.height = map.length * TILE_SIZE;
+
+        let score = 0, lives = 3, highScore = localStorage.getItem('pacmanHighScore') || 0;
+        let gameOver = false, paused = false, dotsRemaining = 0;
+
+        const pacman = { x: TILE_SIZE * 1.5, y: TILE_SIZE * 1.5, direction: 'right', nextDirection: 'right' };
+
+        const ghosts = [
+            { x: TILE_SIZE * 9.5, y: TILE_SIZE * 8.5, color: 'red', direction: 'up', speed: GHOST_SPEED },
+            { x: TILE_SIZE * 9.5, y: TILE_SIZE * 9.5, color: 'pink', direction: 'up', speed: GHOST_SPEED * 0.9 },
+            { x: TILE_SIZE * 9.5, y: TILE_SIZE * 10.5, color: 'cyan', direction: 'up', speed: GHOST_SPEED * 0.95 },
+            { x: TILE_SIZE * 9.5, y: TILE_SIZE * 8.5, color: 'orange', direction: 'up', speed: GHOST_SPEED * 0.85 }
+        ];
+
+        function countDots() {
+            let count = 0;
+            for (let row = 0; row < map.length; row++) {
+                for (let col = 0; col < map[row].length; col++) {
+                    if (map[row][col] === DOT || map[row][col] === POWER) count++;
+                }
+            }
+            return count;
+        }
+
+        function canMove(x, y, direction) {
+            const col = Math.floor(x / TILE_SIZE);
+            const row = Math.floor(y / TILE_SIZE);
+            let nextRow = row, nextCol = col;
+            if (direction === 'up') nextRow--;
+            else if (direction === 'down') nextRow++;
+            else if (direction === 'left') nextCol--;
+            else if (direction === 'right') nextCol++;
+            return nextRow >= 0 && nextRow < map.length && nextCol >= 0 && nextCol < map[0].length && map[nextRow][nextCol] !== WALL;
+        }
+
+        function movePacman() {
+            if (gameOver || paused) return;
+            let currentDirection = pacman.direction;
+            if (canMove(pacman.x, pacman.y, pacman.nextDirection)) {
+                currentDirection = pacman.nextDirection;
+                pacman.direction = pacman.nextDirection;
+            }
+            if (canMove(pacman.x, pacman.y, currentDirection)) {
+                const move = PACMAN_SPEED;
+                if (currentDirection === 'up') pacman.y -= move;
+                else if (currentDirection === 'down') pacman.y += move;
+                else if (currentDirection === 'left') pacman.x -= move;
+                else if (currentDirection === 'right') pacman.x += move;
+            }
+            const col = Math.floor(pacman.x / TILE_SIZE);
+            const row = Math.floor(pacman.y / TILE_SIZE);
+            if (row >= 0 && row < map.length && col >= 0 && col < map[0].length) {
+                if (map[row][col] === DOT) { map[row][col] = EMPTY; score += 10; dotsRemaining--; }
+                else if (map[row][col] === POWER) { map[row][col] = EMPTY; score += 50; dotsRemaining--; }
+            }
+            if (dotsRemaining <= 0) winGame();
+        }
+
+        function moveGhosts() {
+            if (gameOver || paused) return;
+            ghosts.forEach(ghost => {
+                const directions = ['up', 'down', 'left', 'right'];
+                const validDirections = directions.filter(dir => canMove(ghost.x, ghost.y, dir));
+                if (validDirections.length > 0) {
+                    const newDirection = validDirections[Math.floor(Math.random() * validDirections.length)];
+                    ghost.direction = newDirection;
+                }
+                if (canMove(ghost.x, ghost.y, ghost.direction)) {
+                    const move = ghost.speed;
+                    if (ghost.direction === 'up') ghost.y -= move;
+                    else if (ghost.direction === 'down') ghost.y += move;
+                    else if (ghost.direction === 'left') ghost.x -= move;
+                    else if (ghost.direction === 'right') ghost.x += move;
+                }
+                const dx = pacman.x - ghost.x, dy = pacman.y - ghost.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < TILE_SIZE / 2) loseLife();
+            });
+        }
+
+        function drawMap() {
+            for (let row = 0; row < map.length; row++) {
+                for (let col = 0; col < map[row].length; col++) {
+                    const x = col * TILE_SIZE, y = row * TILE_SIZE;
+                    if (map[row][col] === WALL) { ctx.fillStyle = '#2121DE'; ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE); }
+                    else if (map[row][col] === DOT) { ctx.fillStyle = '#FFB897'; ctx.beginPath(); ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE / 2, 3, 0, Math.PI * 2); ctx.fill(); }
+                    else if (map[row][col] === POWER) { ctx.fillStyle = '#FFB897'; ctx.beginPath(); ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE / 2, 7, 0, Math.PI * 2); ctx.fill(); }
+                }
+            }
+        }
+
+        function drawPacman() {
+            ctx.fillStyle = '#FFD700'; ctx.beginPath();
+            const mouthAngle = 0.2;
+            let startAngle = mouthAngle / 2, endAngle = Math.PI * 2 - mouthAngle / 2;
+            if (pacman.direction === 'right') { startAngle = mouthAngle / 2; endAngle = Math.PI * 2 - mouthAngle / 2; }
+            else if (pacman.direction === 'down') { startAngle = Math.PI / 2 + mouthAngle / 2; endAngle = Math.PI * 2.5 - mouthAngle / 2; }
+            else if (pacman.direction === 'left') { startAngle = Math.PI + mouthAngle / 2; endAngle = Math.PI * 1.5 - mouthAngle / 2; }
+            else if (pacman.direction === 'up') { startAngle = Math.PI * 1.5 + mouthAngle / 2; endAngle = Math.PI * 2.5 - mouthAngle / 2; }
+            ctx.arc(pacman.x, pacman.y, TILE_SIZE / 2 - 2, startAngle, endAngle);
+            ctx.lineTo(pacman.x, pacman.y); ctx.fill();
+        }
+
+        function drawGhosts() {
+            ghosts.forEach(ghost => {
+                ctx.fillStyle = ghost.color; ctx.beginPath();
+                ctx.arc(ghost.x, ghost.y - 2, TILE_SIZE / 2 - 2, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#fff'; ctx.beginPath();
+                ctx.arc(ghost.x - 4, ghost.y - 4, 4, 0, Math.PI * 2); ctx.arc(ghost.x + 4, ghost.y - 4, 4, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#000'; ctx.beginPath();
+                ctx.arc(ghost.x - 4, ghost.y - 4, 2, 0, Math.PI * 2); ctx.arc(ghost.x + 4, ghost.y - 4, 2, 0, Math.PI * 2); ctx.fill();
+            });
+        }
+
+        function draw() {
+            ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            drawMap(); drawPacman(); drawGhosts();
+            document.getElementById('score').textContent = score;
+            document.getElementById('lives').textContent = lives;
+            document.getElementById('highScore').textContent = Math.max(score, highScore);
+        }
+
+        function loseLife() {
+            lives--;
+            if (lives <= 0) {
+                gameOver = true;
+                if (score > highScore) { highScore = score; localStorage.setItem('pacmanHighScore', highScore); }
+                document.getElementById('gameOverText').textContent = 'GAME OVER';
+                document.getElementById('gameOverText').style.color = '#FF0000';
+                document.getElementById('finalScore').textContent = score;
+                document.getElementById('gameOver').style.display = 'block';
+            } else {
+                pacman.x = TILE_SIZE * 1.5; pacman.y = TILE_SIZE * 1.5; pacman.direction = 'right'; pacman.nextDirection = 'right';
+                ghosts[0].x = TILE_SIZE * 9.5; ghosts[0].y = TILE_SIZE * 8.5;
+                ghosts[1].x = TILE_SIZE * 9.5; ghosts[1].y = TILE_SIZE * 9.5;
+                ghosts[2].x = TILE_SIZE * 9.5; ghosts[2].y = TILE_SIZE * 10.5;
+                ghosts[3].x = TILE_SIZE * 9.5; ghosts[3].y = TILE_SIZE * 8.5;
+            }
+        }
+
+        function winGame() {
+            gameOver = true;
+            if (score > highScore) { highScore = score; localStorage.setItem('pacmanHighScore', highScore); }
+            document.getElementById('gameOverText').textContent = 'YOU WIN!';
+            document.getElementById('gameOverText').style.color = '#00FF00';
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('gameOver').style.display = 'block';
+        }
+
+        function resetGame() {
+            score = 0; lives = 3; gameOver = false; paused = false; dotsRemaining = countDots();
+            pacman.x = TILE_SIZE * 1.5; pacman.y = TILE_SIZE * 1.5; pacman.direction = 'right'; pacman.nextDirection = 'right';
+            ghosts[0].x = TILE_SIZE * 9.5; ghosts[0].y = TILE_SIZE * 8.5;
+            ghosts[1].x = TILE_SIZE * 9.5; ghosts[1].y = TILE_SIZE * 9.5;
+            ghosts[2].x = TILE_SIZE * 9.5; ghosts[2].y = TILE_SIZE * 10.5;
+            ghosts[3].x = TILE_SIZE * 9.5; ghosts[3].y = TILE_SIZE * 8.5;
+            document.getElementById('gameOver').style.display = 'none';
+        }
+
+        function gameLoop() { movePacman(); moveGhosts(); draw(); requestAnimationFrame(gameLoop); }
+
+        document.addEventListener('keydown', (e) => {
+            switch(e.key) {
+                case 'ArrowUp': case 'w': case 'W': pacman.nextDirection = 'up'; e.preventDefault(); break;
+                case 'ArrowDown': case 's': case 'S': pacman.nextDirection = 'down'; e.preventDefault(); break;
+                case 'ArrowLeft': case 'a': case 'A': pacman.nextDirection = 'left'; e.preventDefault(); break;
+                case 'ArrowRight': case 'd': case 'D': pacman.nextDirection = 'right'; e.preventDefault(); break;
+                case ' ': paused = !paused; e.preventDefault(); break;
+            }
+        });
+
+        document.getElementById('restartBtn').addEventListener('click', resetGame);
+        dotsRemaining = countDots(); gameLoop();
+    </script>
+</body>
+</html>
